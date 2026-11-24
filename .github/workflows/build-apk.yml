@@ -37,6 +37,12 @@ jobs:
           unzip -q Sotigram-Android-Full-Source.zip -d source
           find source -name settings.gradle.kts -print -quit | grep -q .
 
+      - name: Apply Sotigram registration patch
+        run: |
+          python scripts/patch-sotigram-source.py
+          mkdir -p source/Sotigram-Android/supabase/migrations
+          cp supabase/migrations/20261124100000_username_availability_owner_bootstrap.sql source/Sotigram-Android/supabase/migrations/
+
       - name: Inspect app source for auth and owner flow
         working-directory: source/Sotigram-Android
         run: |
