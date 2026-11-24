@@ -37,6 +37,18 @@ jobs:
           unzip -q Sotigram-Android-Full-Source.zip -d source
           find source -name settings.gradle.kts -print -quit | grep -q .
 
+      - name: Inspect app source for auth and owner flow
+        working-directory: source/Sotigram-Android
+        run: |
+          echo '===== MainActivity.kt ====='
+          sed -n '1,260p' app/src/main/java/com/sotigram/app/MainActivity.kt
+          echo '===== SupabaseApi.kt ====='
+          sed -n '1,320p' app/src/main/java/com/sotigram/app/SupabaseApi.kt
+          echo '===== Migration ====='
+          sed -n '1,360p' supabase/migrations/20261124085000_messaging_and_owner_hardening.sql
+          echo '===== README ====='
+          sed -n '1,240p' README.md
+
       - name: Build debug APK
         working-directory: source/Sotigram-Android
         run: gradle assembleDebug --no-daemon
