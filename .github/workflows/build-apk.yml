@@ -51,7 +51,11 @@ jobs:
           echo '===== SupabaseApi.kt ====='
           sed -n '1,320p' app/src/main/java/com/sotigram/app/SupabaseApi.kt
           echo '===== Migration ====='
-          sed -n '1,360p' supabase/migrations/20261124085000_messaging_and_owner_hardening.sql
+          if [ -f supabase/migrations/20261124085000_messaging_and_owner_hardening.sql ]; then
+            sed -n '1,360p' supabase/migrations/20261124085000_messaging_and_owner_hardening.sql
+          else
+            echo 'Migration file is not bundled in the source archive; skipping optional log dump.'
+          fi
           echo '===== README ====='
           sed -n '1,240p' README.md
 
