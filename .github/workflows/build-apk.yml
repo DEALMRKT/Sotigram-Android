@@ -40,8 +40,11 @@ jobs:
       - name: Apply Sotigram registration patch
         run: |
           python scripts/patch-sotigram-source.py
+          python scripts/patch-messenger-groups-channels.py
           mkdir -p source/Sotigram-Android/supabase/migrations
           cp supabase/migrations/20261124100000_username_availability_owner_bootstrap.sql source/Sotigram-Android/supabase/migrations/
+          cp supabase/migrations/20261124120000_sotigram_channels_and_channel_access.sql source/Sotigram-Android/supabase/migrations/
+          cp supabase/migrations/20261124121500_sotigram_fix_channel_message_permissions.sql source/Sotigram-Android/supabase/migrations/
 
       - name: Inspect app source for auth and owner flow
         working-directory: source/Sotigram-Android
