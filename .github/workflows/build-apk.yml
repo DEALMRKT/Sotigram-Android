@@ -1,4 +1,4 @@
-name: Build Sotigram APK
+name: Build Sotigram v0.3.0 APK
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -31,53 +31,30 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract Android project
+      - name: Assemble v0.3.0 source archive
         run: |
+          cat build-v030/part*.b64 | tr -d '\n' | base64 --decode > /tmp/Sotigram-v0.3.0-source.zip
+          unzip -t /tmp/Sotigram-v0.3.0-source.zip
           mkdir -p source
-          unzip -q Sotigram-Android-Full-Source.zip -d source
-          find source -name settings.gradle.kts -print -quit | grep -q .
-
-      - name: Apply Sotigram registration patch
-        run: |
-          python scripts/patch-sotigram-source.py
-          python scripts/patch-messenger-groups-channels.py
-          mkdir -p source/Sotigram-Android/supabase/migrations
-          cp supabase/migrations/20261124100000_username_availability_owner_bootstrap.sql source/Sotigram-Android/supabase/migrations/
-          cp supabase/migrations/20261124120000_sotigram_channels_and_channel_access.sql source/Sotigram-Android/supabase/migrations/
-          cp supabase/migrations/20261124121500_sotigram_fix_channel_message_permissions.sql source/Sotigram-Android/supabase/migrations/
-
-      - name: Inspect app source for auth and owner flow
-        working-directory: source/Sotigram-Android
-        run: |
-          echo '===== MainActivity.kt ====='
-          sed -n '1,260p' app/src/main/java/com/sotigram/app/MainActivity.kt
-          echo '===== SupabaseApi.kt ====='
-          sed -n '1,320p' app/src/main/java/com/sotigram/app/SupabaseApi.kt
-          echo '===== Migration ====='
-          if [ -f supabase/migrations/20261124085000_messaging_and_owner_hardening.sql ]; then
-            sed -n '1,360p' supabase/migrations/20261124085000_messaging_and_owner_hardening.sql
-          else
-            echo 'Migration file is not bundled in the source archive; skipping optional log dump.'
-          fi
-          echo '===== README ====='
-          sed -n '1,240p' README.md
+          unzip -q /tmp/Sotigram-v0.3.0-source.zip -d source
+          test -f source/Sotigram-Android/app/src/main/java/com/sotigram/app/MainActivity.kt
 
       - name: Build debug APK
         working-directory: source/Sotigram-Android
         run: gradle assembleDebug --no-daemon
 
-      - name: Upload extracted Android source for integration work
-        uses: actions/upload-artifact@v4
-        with:
-          name: Sotigram-android-source
-          path: source/Sotigram-Android/
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Sotigram-debug-apk
+          name: Sotigram-v0.3.0-apk
           path: source/Sotigram-Android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload build source
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sotigram-v0.3.0-source
+          path: source/Sotigram-Android/
+          if-no-files-found: error
+          retention-days: 7
