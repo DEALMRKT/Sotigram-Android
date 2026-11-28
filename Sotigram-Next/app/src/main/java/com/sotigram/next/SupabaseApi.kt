@@ -14,7 +14,7 @@ data class SotigramSession(val accessToken:String,val userId:String,val username
 data class ChatItem(val id:String,val kind:String,val title:String,val otherUserId:String?=null,val otherUsername:String?=null,val lastMessage:String="")
 data class UserItem(val id:String,val username:String,val displayName:String,val collectionNumber:String="")
 data class MessageItem(val id:String,val conversationId:String,val senderId:String,val body:String,val createdAt:String)
-data class CallTicket(val id:String,val status:String,val callerId:String="",val calleeId:String="")
+data class CallTicket(val id:String,val status:String,val callerId:String="",val calleeId:String="",val video:Boolean=false)
 data class CallCredentials(val url:String,val token:String,val callId:String)
 data class CatalogItem(val code:String,val title:String,val description:String,val emoji:String,val price:Long,val rarity:String="")
 
@@ -129,15 +129,15 @@ class SupabaseApi(context:Context) {
         val o=a.getJSONObject(0)
         return MessageItem(o.getString("id"),o.getString("conversation_id"),o.getString("sender_id"),o.optString("body"),o.optString("created_at"))
     }
-    fun createCall(calleeId:String):CallTicket {
-        val o=JSONObject(function("sotigram-calls",JSONObject().put("action","create").put("calleeId",calleeId))).getJSONObject("call")
-        return CallTicket(o.getString("id"),o.optString("status"),savedSession()?.userId.orEmpty(),calleeId)
+    fun createCall(calleeId:String,video:Boolean):CallTicket {
+        val o=JSONObject(function("sotigram-calls",JSONObject().put("action","create").put("calleeId",calleeId).put("video",video))).getJSONObject("call")
+        return CallTicket(o.getString("id"),o.optString("status"),savedSession()?.userId.orEmpty(),calleeId,o.optString("call_type")=="video")
     }
     fun incomingCall():CallTicket? {
         val uid=savedSession()?.userId?:return null
-        val a=array("/rest/v1/sotigram_calls?select=id,status,caller_id,callee_id&callee_id=eq.$uid&status=eq.ringing&order=created_at.desc&limit=1")
+        val a=array("/rest/v1/sotigram_calls?select=id,status,caller_id,callee_id,call_type&callee_id=eq.$uid&status=eq.ringing&order=created_at.desc&limit=1")
         if(a.length()==0)return null
-        val o=a.getJSONObject(0);return CallTicket(o.getString("id"),o.optString("status"),o.optString("caller_id"),o.optString("callee_id"))
+        val o=a.getJSONObject(0);return CallTicket(o.getString("id"),o.optString("status"),o.optString("caller_id"),o.optString("callee_id"),o.optString("call_type")=="video")
     }
     fun callStatus(id:String):String {
         val a=array("/rest/v1/sotigram_calls?select=status&id=eq.$id&limit=1")
