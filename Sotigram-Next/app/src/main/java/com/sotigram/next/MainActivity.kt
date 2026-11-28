@@ -68,7 +68,8 @@ private data class StoryCard(val username:String,val caption:String,val created:
 
 @Composable
 private fun SotigramApp(api:SupabaseApi){
-    var session by remember{mutableStateOf(api.savedSession())}
+    var session by remember{mutableStateOf<SotigramSession?>(null)}
+    var restoring by remember{mutableStateOf(true)}
     var chats by remember{mutableStateOf(emptyList<ChatItem>())}
     var selected by remember{mutableStateOf<ChatItem?>(null)}
     var activeCall by remember{mutableStateOf<ActiveCall?>(null)}
@@ -77,6 +78,11 @@ private fun SotigramApp(api:SupabaseApi){
     var page by remember{mutableStateOf("Чаты")}
     var banner by remember{mutableStateOf("")}
     val scope=rememberCoroutineScope()
+
+    LaunchedEffect(Unit){
+        session=withContext(Dispatchers.IO){api.restoreSession()}
+        restoring=false
+    }
 
     LaunchedEffect(session?.userId){
         if(session==null){chats= emptyList();return@LaunchedEffect}
@@ -98,6 +104,15 @@ private fun SotigramApp(api:SupabaseApi){
 
     MaterialTheme(colorScheme=lightColorScheme(primary=Accent,background=Canvas,surface=SurfaceWhite)){
         when{
+            restoring->Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0C1731),Color(0xFF304B80)))),contentAlignment=Alignment.Center){
+                Column(horizontalAlignment=Alignment.CenterHorizontally){
+                    Text("sotigram",color=Color.White,fontSize=32.sp,fontWeight=FontWeight.ExtraBold)
+                    Spacer(Modifier.height(18.dp))
+                    CircularProgressIndicator(color=Color.White)
+                    Spacer(Modifier.height(10.dp))
+                    Text("Проверяем сессию…",color=Color(0xFFB8C6E4),fontSize=13.sp)
+                }
+            }
             session==null->AuthScreen(api){session=it}
             activeCall!=null->CallScreen(api,activeCall!!,onFinish={
                 scope.launch{withContext(Dispatchers.IO){try{api.callAction("end",activeCall!!.id)}catch(_:Exception){}};activeCall=null}
