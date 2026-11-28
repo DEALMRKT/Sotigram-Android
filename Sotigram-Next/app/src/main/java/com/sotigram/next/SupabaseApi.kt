@@ -70,7 +70,7 @@ class SupabaseApi(context:Context) {
     private fun request(path:String,method:String="GET",body:JSONObject?=null,bearer:String?=token(),prefer:String?=null,auth:Boolean=false):String {
         val b=Request.Builder().url(BASE_URL+path).addHeader("apikey",PUBLIC_KEY).addHeader("Accept","application/json")
         if(auth) b.addHeader("Content-Type","application/json")
-        else { b.addHeader("apikey",PUBLIC_KEY); if(bearer!=null)b.addHeader("Authorization","Bearer $bearer") }
+        else { if(bearer!=null)b.addHeader("Authorization","Bearer $bearer") }
         if(prefer!=null)b.addHeader("Prefer",prefer)
         val rb=body?.toString()?.toRequestBody(JSON)
         b.method(method,if(method=="GET"||method=="DELETE")null else (rb?: "{}".toRequestBody(JSON)))
