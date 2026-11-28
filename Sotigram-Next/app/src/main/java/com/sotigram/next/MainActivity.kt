@@ -2,6 +2,7 @@ package com.sotigram.next
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -423,6 +424,7 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
     var connected by remember{mutableStateOf(false)}
     var mic by remember{mutableStateOf(true)}
     var camera by remember{mutableStateOf(call.video)}
+    var speaker by remember{mutableStateOf(true)}
     var failed by remember{mutableStateOf("")}
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){grants->
         if(grants[Manifest.permission.RECORD_AUDIO]==true&&(!call.video||grants[Manifest.permission.CAMERA]==true))connected=true
@@ -464,7 +466,7 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
         Text(failed.ifBlank{status},color=Color.White.copy(alpha=.9f),fontSize=17.sp)
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=34.dp),horizontalArrangement=Arrangement.SpaceEvenly,verticalAlignment=Alignment.CenterVertically){
-            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(if(mic)Icons.Default.VolumeUp else Icons.Default.MicOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("звук",color=Color.White,fontSize=13.sp)}
+            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={try{val audio=context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager;audio.mode=AudioManager.MODE_IN_COMMUNICATION; speaker=!speaker;audio.isSpeakerphoneOn=speaker}catch(e:Exception){failed=e.message?:"Не удалось переключить динамик"}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.VolumeUp,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text(if(speaker)"динамик" else "телефон",color=Color.White,fontSize=13.sp)}
             if(call.video)Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("видео",color=Color.White,fontSize=13.sp)}
             Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(if(mic)Icons.Default.Mic else Icons.Default.MicOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text(if(mic)"убрать звук" else "включить звук",color=Color.White,fontSize=13.sp)}
             Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick=onFinish,colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFFFF3B30)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.CallEnd,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("завершить",color=Color.White,fontSize=13.sp)}
