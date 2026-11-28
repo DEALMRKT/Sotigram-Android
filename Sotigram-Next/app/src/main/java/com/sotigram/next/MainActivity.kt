@@ -203,20 +203,21 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
     var groupTitle by remember{mutableStateOf("")}
     var wallet by remember{mutableStateOf(0L)}
     var nfts by remember{mutableStateOf(emptyList<CatalogItem>())}
+    var nftCatalog by remember{mutableStateOf(emptyList<CatalogItem>())}
     var gifts by remember{mutableStateOf(emptyList<CatalogItem>())}
     var role by remember{mutableStateOf("user")}
     var stories by remember{mutableStateOf(emptyList<StoryCard>())}
     val scope=rememberCoroutineScope()
     LaunchedEffect(page,session.userId){
         if(page=="Профиль"||page=="Маркет"){
-            try{wallet=withContext(Dispatchers.IO){api.walletBalance()};nfts=withContext(Dispatchers.IO){api.myNfts()};gifts=withContext(Dispatchers.IO){api.gifts()};role=withContext(Dispatchers.IO){api.myRole()}}catch(_:Exception){}
+            try{wallet=withContext(Dispatchers.IO){api.walletBalance()};nfts=withContext(Dispatchers.IO){api.myNfts()};nftCatalog=withContext(Dispatchers.IO){api.nftCatalog()};gifts=withContext(Dispatchers.IO){api.gifts()};role=withContext(Dispatchers.IO){api.myRole()}}catch(_:Exception){}
         }
         if(page=="Истории"){
             try{
                 val a=withContext(Dispatchers.IO){api.stories()}
                 val rows=mutableListOf<StoryCard>()
                 for(i in 0 until a.length()){
-                    val o=a.getJSONObject(i);val user=withContext(Dispatchers.IO){api.searchUsers(o.optString("user_id")).firstOrNull()}
+                    val o=a.getJSONObject(i);val user=withContext(Dispatchers.IO){api.profileById(o.optString("user_id"))}
                     rows.add(StoryCard(user?.displayName?:user?.username?: "Пользователь",o.optString("caption"),o.optString("created_at")))
                 }
                 stories=rows
@@ -278,7 +279,7 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
                             Spacer(Modifier.height(14.dp))
                             Button(onClick={onPage("Маркет")},modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(14.dp)){Text("Открыть маркет подарков и NFT")}
                             if(role=="owner"||role=="admin"||role=="moderator"){
-                                OutlinedButton(onClick={scope.launch{try{val data=withContext(Dispatchers.IO){api.ownerOverview()};onBanner(data.toString(2))}catch(e:Exception){onBanner(e.message?:"Нет доступа")}},modifier=Modifier.fillMaxWidth()){Text("Панель управления • $role")}
+                                OutlinedButton(onClick={scope.launch{try{val data=withContext(Dispatchers.IO){api.ownerOverview()};onBanner(data.toString(2))}catch(e:Exception){onBanner(e.message?:"Нет доступа")}}},modifier=Modifier.fillMaxWidth()){Text("Панель управления • $role")}
                             }
                             OutlinedButton(onClick=onLogout,modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.Logout,null);Spacer(Modifier.width(7.dp));Text("Выйти из аккаунта")}
                         }
@@ -287,14 +288,20 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
                 "Маркет"->{
                     Text("Коллекционные NFT",fontWeight=FontWeight.Bold,color=Ink,fontSize=18.sp)
                     LazyColumn(verticalArrangement=Arrangement.spacedBy(9.dp)){
-                        items(nfts+withContextDummyNftPlaceholder()) { }
-                    }
-                    gifts.forEach{item->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(14.dp),verticalAlignment=Alignment.CenterVertically){
-                            Text(item.emoji,fontSize=27.sp);Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(item.title,color=Ink,fontWeight=FontWeight.Bold);Text("${item.price} Stars",color=Muted,fontSize=12.sp)}
+                        items(nftCatalog,key={it.code}){item->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(14.dp),verticalAlignment=Alignment.CenterVertically){
+                                Text(item.emoji,fontSize=30.sp);Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(item.title,color=Ink,fontWeight=FontWeight.Bold);Text("${item.rarity} • ${item.price} Stars",color=Muted,fontSize=11.sp)}
+                                TextButton(onClick={scope.launch{try{withContext(Dispatchers.IO){api.buyNft(item.code)};wallet=withContext(Dispatchers.IO){api.walletBalance()};nfts=withContext(Dispatchers.IO){api.myNfts()};onBanner("Предмет добавлен в коллекцию")}catch(e:Exception){onBanner(e.message?:"Покупка не выполнена")}}}){Text("Купить")}
+                            }
                         }
+                        item { Text("Подарки каталога",color=Ink,fontWeight=FontWeight.Bold,fontSize=18.sp,modifier=Modifier.padding(top=10.dp)) }
+                        items(gifts,key={it.code}){item->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).padding(14.dp),verticalAlignment=Alignment.CenterVertically){
+                                Text(item.emoji,fontSize=27.sp);Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(item.title,color=Ink,fontWeight=FontWeight.Bold);Text("${item.price} Stars",color=Muted,fontSize=12.sp)}
+                            }
+                        }
+                        item { Text("Мои NFT: ${nfts.size} • Баланс: $wallet Stars",color=Accent,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(vertical=10.dp)) }
                     }
-                    Text("Мои NFT: ${nfts.size}",color=Accent,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(vertical=10.dp))
                 }
             }
         }
@@ -307,7 +314,6 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
         },dismissButton={TextButton(onClick={showGroup=false}){Text("Отмена")}})
     }
 }
-private fun withContextDummyNftPlaceholder()=emptyList<CatalogItem>()
 
 @Composable
 private fun ChatRow(chat:ChatItem,onClick:()->Unit){
