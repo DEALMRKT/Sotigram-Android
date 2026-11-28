@@ -335,6 +335,9 @@ private fun ChatScreen(api:SupabaseApi,chat:ChatItem,onBack:()->Unit,onCall:(Boo
     var messages by remember{mutableStateOf(emptyList<MessageItem>())}
     var draft by remember{mutableStateOf("")}
     var loading by remember{mutableStateOf(false)}
+    var giftOpen by remember{mutableStateOf(false)}
+    var giftItems by remember{mutableStateOf(emptyList<CatalogItem>())}
+    var giftBusy by remember{mutableStateOf(false)}
     val scope=rememberCoroutineScope()
     LaunchedEffect(chat.id){
         while(true){try{messages=withContext(Dispatchers.IO){api.messages(chat.id)}}catch(_:Exception){};delay(2200)}
@@ -344,6 +347,7 @@ private fun ChatScreen(api:SupabaseApi,chat:ChatItem,onBack:()->Unit,onCall:(Boo
             IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,null)}
             Column(Modifier.weight(1f)){Text(chat.title,color=Ink,fontWeight=FontWeight.Bold,fontSize=17.sp);Text(if(chat.kind=="direct")"личный чат" else if(chat.kind=="group")"группа" else "канал",color=Muted,fontSize=11.sp)}
             if(chat.kind=="direct"){
+                IconButton(onClick={scope.launch{try{giftItems=withContext(Dispatchers.IO){api.gifts()};giftOpen=true}catch(e:Exception){giftBusy=false}}}){Icon(Icons.Default.CardGiftcard,null,tint=Accent)}
                 IconButton(onClick={onCall(false)}){Icon(Icons.Default.Call,null,tint=Accent)}
                 IconButton(onClick={onCall(true)}){Icon(Icons.Default.Videocam,null,tint=Accent)}
             }
@@ -369,6 +373,21 @@ private fun ChatScreen(api:SupabaseApi,chat:ChatItem,onBack:()->Unit,onCall:(Boo
                 scope.launch{try{withContext(Dispatchers.IO){api.sendMessage(chat.id,text)};messages=withContext(Dispatchers.IO){api.messages(chat.id)}}catch(_:Exception){draft=text}finally{loading=false}}
             }){Icon(Icons.Default.Send,null,tint=Accent)}
         }
+    }
+    if(giftOpen){
+        AlertDialog(onDismissRequest={giftOpen=false},title={Text("Отправить подарок")},text={
+            LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
+                items(giftItems,key={it.code}){gift->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Canvas).padding(10.dp),verticalAlignment=Alignment.CenterVertically){
+                        Text(gift.emoji,fontSize=25.sp);Spacer(Modifier.width(9.dp));Column(Modifier.weight(1f)){Text(gift.title,color=Ink,fontWeight=FontWeight.Bold);Text("${gift.price} Stars",color=Muted,fontSize=11.sp)}
+                        TextButton(enabled=!giftBusy,onClick={
+                            giftBusy=true
+                            scope.launch{try{withContext(Dispatchers.IO){api.sendGift(chat.otherUsername?:error("Не найден логин получателя"),gift.code)};giftOpen=false}catch(e:Exception){giftBusy=false}finally{giftBusy=false}}
+                        }){Text("Отправить")}
+                    }
+                }
+            }
+        },confirmButton={TextButton(onClick={giftOpen=false}){Text("Закрыть")}})
     }
 }
 
