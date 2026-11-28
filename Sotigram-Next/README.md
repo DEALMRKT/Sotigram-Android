@@ -11,3 +11,5 @@ The app uses the existing Supabase project and only its publishable key. Never p
 Registration maps a username to a synthetic email address (`username@sotigram.app`). Supabase Auth must be configured so that this address pattern is accepted and email confirmation is disabled or otherwise handled by a real email flow. If confirmation is enabled, signup will not immediately create an app session.
 
 The current commit is a fresh UI/auth foundation. Chat rows and several navigation sections are intentionally presentation scaffolding; realtime messaging, media uploads, stories, Stars transactions, gifts, NFT purchases, admin actions, voice notes, and LiveKit call UI are not yet wired in this new source tree.
+
+CI workflow refreshed.
