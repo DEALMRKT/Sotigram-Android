@@ -202,6 +202,9 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
     var showGroup by remember{mutableStateOf(false)}
     var isChannel by remember{mutableStateOf(false)}
     var groupTitle by remember{mutableStateOf("")}
+    var memberQuery by remember{mutableStateOf("")}
+    var groupUsers by remember{mutableStateOf(emptyList<UserItem>())}
+    var selectedMemberIds by remember{mutableStateOf(setOf<String>())}
     var wallet by remember{mutableStateOf(0L)}
     var nfts by remember{mutableStateOf(emptyList<CatalogItem>())}
     var nftCatalog by remember{mutableStateOf(emptyList<CatalogItem>())}
@@ -308,9 +311,20 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
         }
     }
     if(showGroup){
-        AlertDialog(onDismissRequest={showGroup=false},title={Text(if(isChannel)"Новый канал" else "Новая группа")},text={Column{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=!isChannel,onClick={isChannel=false},label={Text("Группа")});FilterChip(selected=isChannel,onClick={isChannel=true},label={Text("Канал")})};OutlinedTextField(value=groupTitle,onValueChange={groupTitle=it},label={Text("Название")},singleLine=true)}},confirmButton={
+        LaunchedEffect(showGroup,memberQuery,isChannel){if(showGroup&&!isChannel&&memberQuery.length>=2){delay(250);groupUsers=withContext(Dispatchers.IO){api.searchUsers(memberQuery).filter{it.id!=session.userId}}}else groupUsers=emptyList()}
+        AlertDialog(onDismissRequest={showGroup=false},title={Text(if(isChannel)"Новый канал" else "Новая группа")},text={Column{
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=!isChannel,onClick={isChannel=false},label={Text("Группа")});FilterChip(selected=isChannel,onClick={isChannel=true},label={Text("Канал")})}
+            OutlinedTextField(value=groupTitle,onValueChange={groupTitle=it},label={Text("Название")},singleLine=true)
+            if(!isChannel){
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value=memberQuery,onValueChange={memberQuery=it},label={Text("Добавить участников по логину")},singleLine=true)
+                LazyColumn(Modifier.heightIn(max=180.dp)){
+                    items(groupUsers,key={it.id}){u->Row(verticalAlignment=Alignment.CenterVertically){Checkbox(checked=selectedMemberIds.contains(u.id),onCheckedChange={checked->selectedMemberIds=if(checked)selectedMemberIds+u.id else selectedMemberIds-u.id});Text("@${u.username}",color=Ink)}}
+                }
+            }
+        }},confirmButton={
             TextButton(onClick={
-                scope.launch{try{withContext(Dispatchers.IO){if(isChannel)api.createChannel(groupTitle) else api.createGroup(groupTitle, emptyList())};groupTitle="";showGroup=false;onBanner(if(isChannel)"Канал создан" else "Группа создана. Ищи пользователей в контактах.")}catch(e:Exception){onBanner(e.message?:"Ошибка создания группы")}}
+                scope.launch{try{withContext(Dispatchers.IO){if(isChannel)api.createChannel(groupTitle) else api.createGroup(groupTitle, selectedMemberIds.toList())};groupTitle="";memberQuery="";selectedMemberIds=emptySet();showGroup=false;onBanner(if(isChannel)"Канал создан" else "Группа создана. Ищи пользователей в контактах.")}catch(e:Exception){onBanner(e.message?:"Ошибка создания группы")}}
             },enabled=groupTitle.isNotBlank()){Text("Создать")}
         },dismissButton={TextButton(onClick={showGroup=false}){Text("Отмена")}})
     }
