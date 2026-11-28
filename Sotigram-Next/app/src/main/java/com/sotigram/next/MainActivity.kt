@@ -101,8 +101,8 @@ private fun SotigramApp(api:SupabaseApi){
                 if(chat.otherUserId==null){banner="Звонки доступны в личных чатах";return@ChatScreen}
                 scope.launch{
                     try{
-                        val ticket=withContext(Dispatchers.IO){api.createCall(chat.otherUserId)}
-                        activeCall=ActiveCall(ticket.id,chat.title,true,video)
+                        val ticket=withContext(Dispatchers.IO){api.createCall(chat.otherUserId,video)}
+                        activeCall=ActiveCall(ticket.id,chat.title,true,ticket.video)
                     }catch(e:Exception){banner=e.message?:"Не удалось начать звонок"}
                 }
             })
@@ -121,7 +121,7 @@ private fun SotigramApp(api:SupabaseApi){
                 TextButton(onClick={
                     val c=incoming!!
                     scope.launch{
-                        try{withContext(Dispatchers.IO){api.callAction("accept",c.id)};activeCall=ActiveCall(c.id,incomingName,false,true)}
+                        try{withContext(Dispatchers.IO){api.callAction("accept",c.id)};activeCall=ActiveCall(c.id,incomingName,false,c.video)}
                         catch(e:Exception){banner=e.message?:"Не удалось принять звонок"}
                         incoming=null
                     }
