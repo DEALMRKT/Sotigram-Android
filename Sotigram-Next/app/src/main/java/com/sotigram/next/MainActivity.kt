@@ -38,14 +38,14 @@ import androidx.core.content.ContextCompat
 import io.livekit.android.LiveKit
 import io.livekit.android.RoomOptions
 import io.livekit.android.room.Room
-import io.livekit.android.room.RoomEvent
+import io.livekit.android.events.RoomEvent
 import io.livekit.android.room.track.VideoTrack
 import io.livekit.android.compose.ui.VideoTrackView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
+import io.livekit.android.events.collect
 import kotlinx.coroutines.withContext
 
 private val Ink=Color(0xFF101828)
@@ -524,21 +524,21 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
             Text(failed.ifBlank{status},color=Color.White.copy(alpha=.88f),fontSize=14.sp)
             Spacer(Modifier.height(25.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly,verticalAlignment=Alignment.CenterVertically){
-                CallControl(Icons.Default.VolumeUp,if(speaker)"Динамик" else "Телефон",speaker){
+                CallControl(Icons.Default.VolumeUp,if(speaker)"Динамик" else "Телефон",speaker,onClick={
                     try{
                         val audio=context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
                         audio.mode=AudioManager.MODE_IN_COMMUNICATION
                         speaker=!speaker
                         audio.isSpeakerphoneOn=speaker
                     }catch(e:Exception){failed=e.message?:"Не удалось переключить звук"}
-                }
-                if(call.video)CallControl(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,"Видео",camera){
+                })
+                if(call.video)CallControl(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,"Видео",camera,onClick={
                     scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}
-                }
-                CallControl(if(mic)Icons.Default.Mic else Icons.Default.MicOff,if(mic)"Микрофон" else "Без звука",mic){
+                })
+                CallControl(if(mic)Icons.Default.Mic else Icons.Default.MicOff,if(mic)"Микрофон" else "Без звука",mic,onClick={
                     scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}
-                }
-                CallControl(Icons.Default.CallEnd,"Завершить",false,onFinish,hangup=true)
+                })
+                CallControl(Icons.Default.CallEnd,"Завершить",false,onClick=onFinish,hangup=true)
             }
         }
     }
