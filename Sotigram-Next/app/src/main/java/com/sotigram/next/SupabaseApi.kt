@@ -39,7 +39,7 @@ class SupabaseApi(context:Context) {
         val username=usernameRaw.trim().removePrefix("@").lowercase()
         require(username.matches(Regex("^[a-z0-9_]{3,32}$"))){"Логин: 3–32 символа, латиница, цифры и _"}
         require(password.length>=8){"Пароль должен содержать минимум 8 символов"}
-        val auth=authRequest("/auth/v1/signup",JSONObject().put("email","${username}@sotigram.app").put("password",password)
+        val auth=authRequest("/auth/v1/signup",JSONObject().put("email","${username}@users.sotigram.invalid").put("password",password)
             .put("data",JSONObject().put("username",username).put("display_name",displayName.ifBlank{username})))
         val access=auth.optString("access_token")
         val user=auth.optJSONObject("user")?:auth
@@ -54,7 +54,7 @@ class SupabaseApi(context:Context) {
     @Synchronized fun login(usernameRaw:String,password:String):SotigramSession {
         val username=usernameRaw.trim().removePrefix("@").lowercase()
         require(username.matches(Regex("^[a-z0-9_]{3,32}$"))){"Проверь логин"}
-        val auth=authRequest("/auth/v1/token?grant_type=password",JSONObject().put("email","${username}@sotigram.app").put("password",password))
+        val auth=authRequest("/auth/v1/token?grant_type=password",JSONObject().put("email","${username}@users.sotigram.invalid").put("password",password))
         val access=auth.optString("access_token")
         val uid=auth.optJSONObject("user")?.optString("id").orEmpty()
         if(access.isBlank()||uid.isBlank()) throw IllegalStateException("Не удалось войти")
