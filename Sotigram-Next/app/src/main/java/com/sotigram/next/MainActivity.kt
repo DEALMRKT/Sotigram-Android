@@ -38,9 +38,14 @@ import androidx.core.content.ContextCompat
 import io.livekit.android.LiveKit
 import io.livekit.android.RoomOptions
 import io.livekit.android.room.Room
+import io.livekit.android.room.RoomEvent
+import io.livekit.android.room.track.VideoTrack
+import io.livekit.android.compose.ui.VideoTrackView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
 private val Ink=Color(0xFF101828)
@@ -417,9 +422,11 @@ private fun ChatScreen(api:SupabaseApi,chat:ChatItem,onBack:()->Unit,onCall:(Boo
 
 @Composable
 private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError:(String)->Unit){
-    val context= LocalContext.current
+    val context=LocalContext.current
     val scope=rememberCoroutineScope()
     var room by remember{mutableStateOf<Room?>(null)}
+    var remoteVideo by remember{mutableStateOf<VideoTrack?>(null)}
+    var eventJob by remember{mutableStateOf<Job?>(null)}
     var status by remember{mutableStateOf(if(call.caller)"Вызов…" else "Подключение…")}
     var connected by remember{mutableStateOf(false)}
     var mic by remember{mutableStateOf(true)}
@@ -428,7 +435,7 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
     var failed by remember{mutableStateOf("")}
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){grants->
         if(grants[Manifest.permission.RECORD_AUDIO]==true&&(!call.video||grants[Manifest.permission.CAMERA]==true))connected=true
-        else failed="Нужен доступ к микрофону${if(call.video)" и камере" else ""} для звонка"
+        else failed="Разреши доступ к микрофону и камере в настройках приложения"
     }
     LaunchedEffect(call.id){
         val needed=mutableListOf(Manifest.permission.RECORD_AUDIO)
@@ -441,36 +448,121 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
         try{
             if(call.caller){
                 var state="ringing"
-                repeat(30){if(state!="ringing")return@repeat;delay(1500);state=withContext(Dispatchers.IO){api.callStatus(call.id)}}
-                if(state!="accepted"){failed=if(state=="declined")"Звонок отклонён" else "Нет ответа";return@LaunchedEffect}
+                repeat(30){
+                    if(state!="ringing")return@repeat
+                    delay(1500)
+                    state=withContext(Dispatchers.IO){api.callStatus(call.id)}
+                }
+                if(state!="accepted"){
+                    failed=if(state=="declined")"Звонок отклонён" else "Нет ответа"
+                    return@LaunchedEffect
+                }
             }
+            status="Подключаем защищённую связь…"
             val credentials=withContext(Dispatchers.IO){api.callCredentials(call.id)}
             val lk=LiveKit.create(context.applicationContext,RoomOptions())
             room=lk
-            withContext(Dispatchers.IO){lk.connect(credentials.url,credentials.token)}
+            // Start listening before connecting so the first remote video track is not missed.
+            eventJob=scope.launch{
+                lk.events.collect{event->
+                    if(event is RoomEvent.TrackSubscribed && event.track is VideoTrack){
+                        remoteVideo=event.track as VideoTrack
+                        status="Видео подключено"
+                    }
+                    if(event is RoomEvent.ParticipantDisconnected && call.video){
+                        remoteVideo=null
+                        status="Собеседник отключился"
+                    }
+                }
+            }
+            lk.connect(credentials.url,credentials.token)
             lk.localParticipant.setMicrophoneEnabled(true)
             if(call.video)lk.localParticipant.setCameraEnabled(true)
-            status=if(call.video)"Видеозвонок подключён" else "Аудиозвонок подключён"
-        }catch(e:Exception){failed=e.message?:"Не удалось подключиться к звонку"}
+            status=if(call.video)"Ожидаем видео собеседника…" else "Аудиозвонок подключён"
+        }catch(e:Exception){
+            failed=e.message?: "Не удалось подключиться. Проверь интернет и разрешения."
+            onError(failed)
+        }
     }
     DisposableEffect(room){
-        onDispose{val current=room;if(current!=null)scope.launch{try{current.disconnect()}catch(_:Exception){}}}
-    }
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF9270D8),Color(0xFF696FD5),Color(0xFF4F83D6)))),horizontalAlignment=Alignment.CenterHorizontally){
-        Row(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=18.dp),verticalAlignment=Alignment.CenterVertically){TextButton(onClick=onFinish){Text("‹  Назад",color=Color.White,fontSize=18.sp)}}
-        Spacer(Modifier.weight(1f))
-        Box(Modifier.size(174.dp).border(10.dp,Color(0x337FFFFF),CircleShape).padding(10.dp).clip(CircleShape).background(Color(0x447FFFFF)),contentAlignment=Alignment.Center){Text(call.peerName.take(1).uppercase(),fontSize=66.sp,color=Color.White,fontWeight=FontWeight.Light)}
-        Spacer(Modifier.height(28.dp))
-        Text(call.peerName,color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Medium)
-        Spacer(Modifier.height(8.dp))
-        Text(failed.ifBlank{status},color=Color.White.copy(alpha=.9f),fontSize=17.sp)
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=34.dp),horizontalArrangement=Arrangement.SpaceEvenly,verticalAlignment=Alignment.CenterVertically){
-            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={try{val audio=context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager;audio.mode=AudioManager.MODE_IN_COMMUNICATION; speaker=!speaker;audio.isSpeakerphoneOn=speaker}catch(e:Exception){failed=e.message?:"Не удалось переключить динамик"}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.VolumeUp,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text(if(speaker)"динамик" else "телефон",color=Color.White,fontSize=13.sp)}
-            if(call.video)Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("видео",color=Color.White,fontSize=13.sp)}
-            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFF)),modifier=Modifier.size(68.dp)){Icon(if(mic)Icons.Default.Mic else Icons.Default.MicOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text(if(mic)"убрать звук" else "включить звук",color=Color.White,fontSize=13.sp)}
-            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick=onFinish,colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFFFF3B30)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.CallEnd,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("завершить",color=Color.White,fontSize=13.sp)}
+        onDispose{
+            eventJob?.cancel()
+            val current=room
+            if(current!=null)scope.launch{try{current.disconnect()}catch(_:Exception){}}
+            val audio=context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+            audio.mode=AudioManager.MODE_NORMAL
         }
+    }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF9270D8),Color(0xFF696FD5),Color(0xFF4F83D6))))){
+        if(call.video && remoteVideo!=null){
+            VideoTrackView(videoTrack=remoteVideo,modifier=Modifier.fillMaxSize(),passedRoom=room,mirror=false)
+        }else{
+            Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally){
+                Box(Modifier.size(184.dp).border(10.dp,Color(0x447FFFFF),CircleShape).padding(10.dp).clip(CircleShape).background(Color(0x447FFFFF)),contentAlignment=Alignment.Center){
+                    Text(call.peerName.take(1).uppercase(),fontSize=70.sp,color=Color.White,fontWeight=FontWeight.Light)
+                }
+                Spacer(Modifier.height(24.dp))
+                Text(if(call.video)"Ожидаем изображение…" else "Sotigram",color=Color.White.copy(alpha=.78f),fontSize=14.sp)
+            }
+        }
+        // Soft overlay keeps the call controls legible over live camera video.
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x660B1022),Color.Transparent,Color(0x990B1022)))))
+        Row(Modifier.fillMaxWidth().align(Alignment.TopStart).padding(horizontal=18.dp,vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
+            TextButton(onClick=onFinish){Text("‹  Назад",color=Color.White,fontSize=18.sp)}
+            Spacer(Modifier.weight(1f))
+            Surface(color=Color(0x55404A66),shape=RoundedCornerShape(50)){
+                Row(Modifier.padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(if(failed.isBlank())Color(0xFF4ADE80) else Color(0xFFFF6464)))
+                    Spacer(Modifier.width(7.dp))
+                    Text(if(failed.isNotBlank())"Нет связи" else if(status.contains("подключ",true)||status.contains("ожида",true))"Соединение" else "В эфире",color=Color.White,fontSize=12.sp)
+                }
+            }
+        }
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal=20.dp,vertical=28.dp),horizontalAlignment=Alignment.CenterHorizontally){
+            Text(call.peerName,color=Color.White,fontSize=25.sp,fontWeight=FontWeight.SemiBold)
+            Spacer(Modifier.height(5.dp))
+            Text(failed.ifBlank{status},color=Color.White.copy(alpha=.88f),fontSize=14.sp)
+            Spacer(Modifier.height(25.dp))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly,verticalAlignment=Alignment.CenterVertically){
+                CallControl(Icons.Default.VolumeUp,if(speaker)"Динамик" else "Телефон",speaker){
+                    try{
+                        val audio=context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                        audio.mode=AudioManager.MODE_IN_COMMUNICATION
+                        speaker=!speaker
+                        audio.isSpeakerphoneOn=speaker
+                    }catch(e:Exception){failed=e.message?:"Не удалось переключить звук"}
+                }
+                if(call.video)CallControl(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,"Видео",camera){
+                    scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}
+                }
+                CallControl(if(mic)Icons.Default.Mic else Icons.Default.MicOff,if(mic)"Микрофон" else "Без звука",mic){
+                    scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}
+                }
+                CallControl(Icons.Default.CallEnd,"Завершить",false,onFinish,hangup=true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CallControl(
+    icon:androidx.compose.ui.graphics.vector.ImageVector,
+    label:String,
+    active:Boolean,
+    onClick:()->Unit,
+    hangup:Boolean=false
+){
+    Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.width(76.dp)){
+        FilledIconButton(
+            onClick=onClick,
+            modifier=Modifier.size(62.dp),
+            colors=IconButtonDefaults.filledIconButtonColors(
+                containerColor=if(hangup)Color(0xFFFF453A) else if(active)Color(0x667EA7FF) else Color(0x55313B55),
+                contentColor=Color.White
+            )
+        ){Icon(icon,null,modifier=Modifier.size(27.dp))}
+        Spacer(Modifier.height(7.dp))
+        Text(label,color=Color.White,fontSize=11.sp,maxLines=1)
     }
 }
 
