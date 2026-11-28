@@ -123,7 +123,7 @@ class SupabaseApi(context:Context) {
     }
     fun sendMessage(conversationId:String,body:String):MessageItem {
         val uid=savedSession()?.userId?:error("Нет сессии")
-        val a=JSONArray(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",conversationId).put("sender_id",uid).put("body",body),"return=representation"))
+        val a=JSONArray(request("/rest/v1/messages","POST",JSONObject().put("conversation_id",conversationId).put("sender_id",uid).put("body",body),token(),"return=representation"))
         val o=a.getJSONObject(0)
         return MessageItem(o.getString("id"),o.getString("conversation_id"),o.getString("sender_id"),o.optString("body"),o.optString("created_at"))
     }
@@ -164,6 +164,10 @@ class SupabaseApi(context:Context) {
         return (0 until a.length()).map{val o=a.getJSONObject(it);CatalogItem(o.optString("catalog_code"),o.optString("title"),o.optString("description"),o.optString("emoji"),0,o.optString("rarity"))}
     }
     fun buyNft(code:String)=rpc("sotigram_nft_buy",JSONObject().put("nft_code",code))
+    fun sendGift(recipientUsername:String,code:String,message:String="")=rpc("sotigram_send_gift",JSONObject().put("recipient_username",recipientUsername).put("gift_code",code).put("gift_message",message))
+    fun myGifts()=JSONArray(rpc("sotigram_my_gifts"))
+    fun stories():JSONArray=array("/rest/v1/stories?select=id,user_id,media_path,media_type,caption,created_at,expires_at&expires_at=gt.${enc(java.time.Instant.now().toString())}&order=created_at.desc&limit=100")
+    fun ownerOverview()=JSONObject(rpc("sotigram_owner_overview"))
     fun walletBalance():Long {
         val uid=savedSession()?.userId?:return 0
         val a=array("/rest/v1/sotigram_wallets?select=balance&user_id=eq.$uid&limit=1")
