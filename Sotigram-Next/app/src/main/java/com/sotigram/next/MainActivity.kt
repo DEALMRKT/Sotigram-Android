@@ -139,8 +139,8 @@ private fun SotigramApp(api:SupabaseApi){
 
 @Composable
 private fun AuthScreen(api:SupabaseApi,onSuccess:(SotigramSession)->Unit){
-    var register by remember{mutableStateOf(true)}
-    var username by remember{mutableStateOf("")}
+    var register by remember{mutableStateOf(false)}
+    var username by remember{mutableStateOf("Razrab")}
     var display by remember{mutableStateOf("")}
     var password by remember{mutableStateOf("")}
     var reveal by remember{mutableStateOf(false)}
@@ -230,7 +230,7 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
     }
     Scaffold(containerColor=Canvas,bottomBar={
         NavigationBar(containerColor=Color.White,tonalElevation=12.dp){
-            listOf("Чаты" to Icons.Default.ChatBubble,"Контакты" to Icons.Default.People,"Истории" to Icons.Default.AutoAwesome,"Профиль" to Icons.Default.Person).forEach{(label,icon)->
+            listOf("Чаты" to Icons.Default.ChatBubble,"Звонки" to Icons.Default.Call,"Контакты" to Icons.Default.People,"Маркет" to Icons.Default.CardGiftcard,"Профиль" to Icons.Default.Person).forEach{(label,icon)->
                 NavigationBarItem(selected=page==label,onClick={onPage(label)},icon={Icon(icon,null)},label={Text(label,fontSize=10.sp)})
             }
         }
@@ -240,15 +240,24 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=18.dp)){
             Spacer(Modifier.height(15.dp))
             Row(verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f)){Text("Sotigram",color=Ink,fontSize=27.sp,fontWeight=FontWeight.ExtraBold);Text(when(page){"Чаты"->"Твои разговоры в одном месте";"Контакты"->"Найди друзей по логину";"Истории"->"Моменты сообщества";else->"Твой аккаунт и коллекция"},color=Muted,fontSize=12.sp)}
-                if(page=="Чаты")IconButton(onClick={showGroup=true}){Icon(Icons.Default.GroupAdd,null,tint=Ink)}
+                Column(Modifier.weight(1f)){Text(when(page){"Чаты"->"Чаты";"Звонки"->"Звонки";"Контакты"->"Контакты";"Маркет"->"Маркет";else->"Профиль"},color=Ink,fontSize=27.sp,fontWeight=FontWeight.Bold);Text(when(page){"Чаты"->"Все сообщения";"Звонки"->"Аудио и видеосвязь";"Контакты"->"Найди друзей по логину";"Маркет"->"Подарки и коллекция";else->"Твой аккаунт"},color=Muted,fontSize=12.sp)}
+                if(page=="Чаты")IconButton(onClick={showGroup=true}){Icon(Icons.Default.Edit,null,tint=Accent)}
             }
             Spacer(Modifier.height(16.dp))
             when(page){
                 "Чаты"->{
-                    LazyColumn(verticalArrangement=Arrangement.spacedBy(9.dp)){
-                        items(chats,key={it.id}){chat->ChatRow(chat,onClick={onChat(chat)})}
+                    OutlinedTextField(value=query,onValueChange={query=it},modifier=Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Поиск")},leadingIcon={Icon(Icons.Default.Search,null,tint=Muted)},shape=RoundedCornerShape(28.dp),colors=fieldColors())
+                    Spacer(Modifier.height(10.dp))
+                    LazyColumn(verticalArrangement=Arrangement.spacedBy(2.dp)){
+                        items(chats.filter{it.title.contains(query,true)||it.lastMessage.contains(query,true)},key={it.id}){chat->ChatRow(chat,onClick={onChat(chat)})}
                     }
+                }
+                "Звонки"->{
+                    val directChats=chats.filter{it.kind=="direct"}
+                    if(directChats.isEmpty())EmptyState("Пока нет звонков","Открой личный чат и нажми на трубку, чтобы позвонить",Icons.Default.Call)
+                    else LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(directChats,key={it.id}){chat->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).padding(12.dp),verticalAlignment=Alignment.CenterVertically){Avatar(chat.title);Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(chat.title,color=Ink,fontWeight=FontWeight.SemiBold);Text("Аудио- и видеозвонок",color=Muted,fontSize=11.sp)};IconButton(onClick={onChat(chat)}){Icon(Icons.Default.ChatBubbleOutline,null,tint=Muted)};IconButton(onClick={onChat(chat)}){Icon(Icons.Default.Call,null,tint=Accent)}}
+                    }}
                 }
                 "Контакты"->{
                     OutlinedTextField(value=query,onValueChange={query=it},modifier=Modifier.fillMaxWidth(),singleLine=true,placeholder={Text("Поиск по логину или имени")},leadingIcon={Icon(Icons.Default.Search,null)},shape=RoundedCornerShape(18.dp))
@@ -332,11 +341,11 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
 
 @Composable
 private fun ChatRow(chat:ChatItem,onClick:()->Unit){
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White).clickable(onClick=onClick).padding(13.dp),verticalAlignment=Alignment.CenterVertically){
+    Row(Modifier.fillMaxWidth().clickable(onClick=onClick).padding(vertical=10.dp,horizontal=4.dp),verticalAlignment=Alignment.CenterVertically){
         Avatar(chat.title)
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)){Text(chat.title,color=Ink,fontWeight=FontWeight.SemiBold,fontSize=14.sp);Spacer(Modifier.height(4.dp));Text(chat.lastMessage.ifBlank{when(chat.kind){"group"->"Группа";"channel"->"Канал";else->"Начни общение"}},color=Muted,fontSize=12.sp,maxLines=1)}
-        Text(when(chat.kind){"group"->"ГРУППА";"channel"->"КАНАЛ";else->"ЧАТ"},color=Accent,fontSize=9.sp,fontWeight=FontWeight.Bold)
+        Text("›",color=Muted,fontSize=23.sp,fontWeight=FontWeight.Light)
     }
 }
 @Composable
@@ -445,17 +454,20 @@ private fun CallScreen(api:SupabaseApi,call:ActiveCall,onFinish:()->Unit,onError
     DisposableEffect(room){
         onDispose{val current=room;if(current!=null)scope.launch{try{current.disconnect()}catch(_:Exception){}}}
     }
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF101B36),Color(0xFF1E3764),Color(0xFF0B1428)))),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
-        Box(Modifier.size(120.dp).clip(CircleShape).background(Color(0x335B7CFA)),contentAlignment=Alignment.Center){Text(call.peerName.take(1).uppercase(),fontSize=48.sp,color=Color.White,fontWeight=FontWeight.Bold)}
-        Spacer(Modifier.height(25.dp))
-        Text(call.peerName,color=Color.White,fontSize=26.sp,fontWeight=FontWeight.Bold)
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF9270D8),Color(0xFF696FD5),Color(0xFF4F83D6)))),horizontalAlignment=Alignment.CenterHorizontally){
+        Row(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=18.dp),verticalAlignment=Alignment.CenterVertically){TextButton(onClick=onFinish){Text("‹  Назад",color=Color.White,fontSize=18.sp)}}
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.size(174.dp).border(10.dp,Color(0x337FFFFFF),CircleShape).padding(10.dp).clip(CircleShape).background(Color(0x447FFFFFF)),contentAlignment=Alignment.Center){Text(call.peerName.take(1).uppercase(),fontSize=66.sp,color=Color.White,fontWeight=FontWeight.Light)}
+        Spacer(Modifier.height(28.dp))
+        Text(call.peerName,color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
-        Text(failed.ifBlank{status},color=Color(0xFFCBD6EF),fontSize=14.sp)
-        Spacer(Modifier.height(65.dp))
-        Row(horizontalArrangement=Arrangement.spacedBy(22.dp),verticalAlignment=Alignment.CenterVertically){
-            FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFF31466C)),modifier=Modifier.size(62.dp)){Icon(if(mic)Icons.Default.Mic else Icons.Default.MicOff,null,tint=Color.White)}
-            if(call.video)FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFF31466C)),modifier=Modifier.size(62.dp)){Icon(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,null,tint=Color.White)}
-            FilledIconButton(onClick=onFinish,colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFFE34D62)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.CallEnd,null,tint=Color.White)}
+        Text(failed.ifBlank{status},color=Color.White.copy(alpha=.9f),fontSize=17.sp)
+        Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=34.dp),horizontalArrangement=Arrangement.SpaceEvenly,verticalAlignment=Alignment.CenterVertically){
+            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFFF)),modifier=Modifier.size(68.dp)){Icon(if(mic)Icons.Default.VolumeUp else Icons.Default.MicOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("звук",color=Color.White,fontSize=13.sp)}
+            if(call.video)Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setCameraEnabled(!camera);camera=!camera}catch(e:Exception){failed=e.message?:"Ошибка камеры"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFFF)),modifier=Modifier.size(68.dp)){Icon(if(camera)Icons.Default.Videocam else Icons.Default.VideocamOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("видео",color=Color.White,fontSize=13.sp)}
+            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick={scope.launch{try{room?.localParticipant?.setMicrophoneEnabled(!mic);mic=!mic}catch(e:Exception){failed=e.message?:"Ошибка микрофона"}}},colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0x447FFFFFF)),modifier=Modifier.size(68.dp)){Icon(if(mic)Icons.Default.Mic else Icons.Default.MicOff,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text(if(mic)"убрать звук" else "включить звук",color=Color.White,fontSize=13.sp)}
+            Column(horizontalAlignment=Alignment.CenterHorizontally){FilledIconButton(onClick=onFinish,colors=IconButtonDefaults.filledIconButtonColors(containerColor=Color(0xFFFF3B30)),modifier=Modifier.size(68.dp)){Icon(Icons.Default.CallEnd,null,tint=Color.White,modifier=Modifier.size(30.dp))};Text("завершить",color=Color.White,fontSize=13.sp)}
         }
     }
 }
