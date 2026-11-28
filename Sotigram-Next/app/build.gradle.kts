@@ -30,5 +30,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.livekit:livekit-android:2.30.0")
+    implementation("io.livekit:livekit-android-compose-components:2.4.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
