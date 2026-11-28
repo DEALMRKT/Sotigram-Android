@@ -200,6 +200,7 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
     var query by remember{mutableStateOf("")}
     var users by remember{mutableStateOf(emptyList<UserItem>())}
     var showGroup by remember{mutableStateOf(false)}
+    var isChannel by remember{mutableStateOf(false)}
     var groupTitle by remember{mutableStateOf("")}
     var wallet by remember{mutableStateOf(0L)}
     var nfts by remember{mutableStateOf(emptyList<CatalogItem>())}
@@ -307,9 +308,9 @@ private fun MainShell(api:SupabaseApi,session:SotigramSession,chats:List<ChatIte
         }
     }
     if(showGroup){
-        AlertDialog(onDismissRequest={showGroup=false},title={Text("Новая группа")},text={OutlinedTextField(value=groupTitle,onValueChange={groupTitle=it},label={Text("Название группы")},singleLine=true)},confirmButton={
+        AlertDialog(onDismissRequest={showGroup=false},title={Text(if(isChannel)"Новый канал" else "Новая группа")},text={Column{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(selected=!isChannel,onClick={isChannel=false},label={Text("Группа")});FilterChip(selected=isChannel,onClick={isChannel=true},label={Text("Канал")})};OutlinedTextField(value=groupTitle,onValueChange={groupTitle=it},label={Text("Название")},singleLine=true)}},confirmButton={
             TextButton(onClick={
-                scope.launch{try{withContext(Dispatchers.IO){api.createGroup(groupTitle, emptyList())};groupTitle="";showGroup=false;onBanner("Группа создана. Добавляй участников через поиск контактов.")}catch(e:Exception){onBanner(e.message?:"Ошибка создания группы")}}
+                scope.launch{try{withContext(Dispatchers.IO){if(isChannel)api.createChannel(groupTitle) else api.createGroup(groupTitle, emptyList())};groupTitle="";showGroup=false;onBanner(if(isChannel)"Канал создан" else "Группа создана. Ищи пользователей в контактах.")}catch(e:Exception){onBanner(e.message?:"Ошибка создания группы")}}
             },enabled=groupTitle.isNotBlank()){Text("Создать")}
         },dismissButton={TextButton(onClick={showGroup=false}){Text("Отмена")}})
     }
