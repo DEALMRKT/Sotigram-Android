@@ -102,17 +102,19 @@ class SupabaseApi(context:Context) {
             val row=a.getJSONObject(i); val c=row.optJSONObject("conversations")?:continue
             val id=c.optString("id"); val kind=c.optString("kind")
             val title=if(kind=="direct") "Личный чат" else c.optString("title","Sotigram")
-            var otherId:String?=null; var otherName:String?=null
+            var otherId:String?=null; var otherName:String?=null; var otherUsername:String?=null
             if(kind=="direct") {
                 val m=array("/rest/v1/conversation_members?select=user_id&conversation_id=eq.$id&user_id=neq.$uid&limit=1")
-                if(m.length()>0){otherId=m.getJSONObject(0).optString("user_id"); val p=array("/rest/v1/profiles?select=username,display_name&id=eq.$otherId&limit=1");if(p.length()>0)otherName=p.getJSONObject(0).optString("display_name").ifBlank{p.getJSONObject(0).optString("username")}}
+                if(m.length()>0){otherId=m.getJSONObject(0).optString("user_id"); val p=array("/rest/v1/profiles?select=username,display_name&id=eq.$otherId&limit=1");if(p.length()>0){otherUsername=p.getJSONObject(0).optString("username");otherName=p.getJSONObject(0).optString("display_name").ifBlank{otherUsername.orEmpty()}}}
             }
             val msg=array("/rest/v1/messages?select=body&conversation_id=eq.$id&deleted_at=is.null&order=created_at.desc&limit=1")
-            out.add(ChatItem(id,kind,if(kind=="direct")otherName?:title else title,otherId,otherName,msg.optJSONObject(0)?.optString("body").orEmpty()))
+            out.add(ChatItem(id,kind,if(kind=="direct")otherName?:title else title,otherId,otherUsername,msg.optJSONObject(0)?.optString("body").orEmpty()))
         }
         return out
     }
-    fun direct(userId:String):String=rpc("sotigram_create_direct_conversation",JSONObject().put("other_user",userId)).trim('"')
+    fun profileById(userId:String):UserItem? { val a=array("/rest/v1/profiles?select=id,username,display_name,collection_number&id=eq.$userId&limit=1"); if(a.length()==0)return null; val o=a.getJSONObject(0); return UserItem(o.getString("id"),o.getString("username"),o.optString("display_name"),o.optString("collection_number")) }
+    fun direct(userId:String):String=rpc("sotigram_create_direct_conversation",JSONObject().put("other_user",userId))
+    fun createChannel(title:String,description:String="")=rpc("sotigram_create_channel",JSONObject().put("channel_title",title).put("channel_description",description)).trim('"').trim('"')
     fun createGroup(title:String,memberIds:List<String>):String {
         val ids=JSONArray();memberIds.forEach{ids.put(it)}
         return rpc("sotigram_create_group",JSONObject().put("group_title",title).put("member_ids",ids)).trim('"')
@@ -159,6 +161,7 @@ class SupabaseApi(context:Context) {
         val a=JSONArray(rpc("sotigram_nft_catalog"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);CatalogItem(o.optString("code"),o.optString("title"),o.optString("description"),o.optString("emoji"),o.optLong("price_stars"),o.optString("rarity"))}
     }
+    fun nftCatalog():List<CatalogItem> { val a=JSONArray(rpc("sotigram_nft_catalog")); return (0 until a.length()).map{val o=a.getJSONObject(it);CatalogItem(o.optString("code"),o.optString("title"),o.optString("description"),o.optString("emoji"),o.optLong("price_stars"),o.optString("rarity"))} }
     fun myNfts():List<CatalogItem> {
         val a=JSONArray(rpc("sotigram_my_nfts"))
         return (0 until a.length()).map{val o=a.getJSONObject(it);CatalogItem(o.optString("catalog_code"),o.optString("title"),o.optString("description"),o.optString("emoji"),0,o.optString("rarity"))}
