@@ -82,7 +82,7 @@ private fun SotigramApp(api:SupabaseApi){
                 if(call!=null&&activeCall==null&&incoming?.id!=call.id){
                     incoming=call
                     incomingName=withContext(Dispatchers.IO){
-                        api.searchUsers(call.callerId).firstOrNull()?.displayName?: "Входящий звонок"
+                        api.profileById(call.callerId)?.displayName?: "Входящий звонок"
                     }
                 }
             }catch(_:Exception){}
