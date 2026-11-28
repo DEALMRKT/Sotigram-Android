@@ -33,6 +33,23 @@ class SupabaseApi(context:Context) {
         val username=prefs.getString("username",null)?:return null
         return SotigramSession(token,uid,username)
     }
+    @Synchronized fun restoreSession():SotigramSession? {
+        val old=savedSession()?:return null
+        val refresh=prefs.getString("refresh",null)
+        if(refresh.isNullOrBlank()){signOut();return null}
+        return try{
+            val result=authRequest("/auth/v1/token?grant_type=refresh_token",JSONObject().put("refresh_token",refresh))
+            val access=result.optString("access_token")
+            val nextRefresh=result.optString("refresh_token")
+            val uid=result.optJSONObject("user")?.optString("id").orEmpty()
+            if(access.isBlank()||uid.isBlank()) throw IllegalStateException("Сессия истекла")
+            save(access,nextRefresh,uid,old.username)
+            SotigramSession(access,uid,old.username)
+        }catch(_:Exception){
+            signOut()
+            null
+        }
+    }
     fun signOut(){prefs.edit().clear().apply()}
 
     @Synchronized fun register(usernameRaw:String,password:String,displayName:String):SotigramSession {
@@ -57,7 +74,7 @@ class SupabaseApi(context:Context) {
         val auth=authRequest("/auth/v1/token?grant_type=password",JSONObject().put("email","${username}@users.sotigram.invalid").put("password",password))
         val access=auth.optString("access_token")
         val uid=auth.optJSONObject("user")?.optString("id").orEmpty()
-        if(access.isBlank()||uid.isBlank()) throw IllegalStateException("Не удалось войти")
+        if(access.isBlank()||uid.isBlank()) throw IllegalStateException("Supabase не вернул сессию. Проверь пароль аккаунта Razrab.")
         save(access,auth.optString("refresh_token"),uid,username)
         return SotigramSession(access,uid,username)
     }
