@@ -13,3 +13,5 @@ Registration maps a username to a synthetic email address (`username@sotigram.ap
 The current commit is a fresh UI/auth foundation. Chat rows and several navigation sections are intentionally presentation scaffolding; realtime messaging, media uploads, stories, Stars transactions, gifts, NFT purchases, admin actions, voice notes, and LiveKit call UI are not yet wired in this new source tree.
 
 CI workflow refreshed.
+
+Build workflow updated.
